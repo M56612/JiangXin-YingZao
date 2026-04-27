@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>匠心 · 营造</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'vermilion': '#B22222',
+            'mineral-green': '#3B5E4F',
+            'ink': '#1A1A1B',
+            'gold-leaf': '#D4AF37',
+            'paper': '#F2E6CE'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow-x: hidden;
+      min-height: 100vh;
+      font-family: 'Noto Serif SC', serif;
+      color: #fff;
+      background-color: #121212;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+    }
+
+    #cosmos { display: none; }
+
+    .ink-rule {
+      width: 80px; height: 1px;
+      background: linear-gradient(90deg, transparent, #D4AF37 50%, transparent);
+      margin: 0 auto;
+    }
+
+    #tarot-circle { position: relative; width: 520px; height: 520px; margin: 0 auto; }
+    #circle-inner  { position: absolute; width: 100%; height: 100%; }
+
+    .tarot-card {
+      position: absolute;
+      width: 72px; height: 120px;
+      border-radius: 6px;
+      cursor: pointer;
+      overflow: visible;
+      transform-style: preserve-3d;
+      transition: transform 0.35s cubic-bezier(0.23,1,0.32,1), box-shadow 0.35s;
+    }
+    .tarot-card::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 8px;
+      background: linear-gradient(145deg, #D4AF37 0%, #6B4F18 50%, #D4AF37 100%);
+      z-index: -1;
+      opacity: 0.55;
+      transition: opacity 0.3s;
+    }
+    .tarot-card:hover::before, .tarot-card.hover::before { opacity: 1; }
+    .tarot-card:hover, .tarot-card.hover {
+      transform: scale(1.28) translateZ(24px) !important;
+      z-index: 100 !important;
+      box-shadow: 0 12px 48px rgba(212,175,55,0.45);
+    }
+    .tarot-card.selected { box-shadow: 0 0 40px rgba(212,175,55,0.7); }
+    .tarot-card.selected::before { opacity: 1; animation: gold-pulse 2s infinite; }
+    @keyframes gold-pulse { 0%,100%{opacity:0.8;} 50%{opacity:1;} }
+
+    .card-inner {
+      width: 100%; height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.85s cubic-bezier(0.4, 0.2, 0.2, 1);
+      border-radius: 5px;
+    }
+    .card-inner.flipped { transform: rotateY(180deg); }
+
+    .card-back {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 5px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      background-color: #5A0A0A;
+      background-image:
+        repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(212,175,55,0.07) 18px, rgba(212,175,55,0.07) 19px),
+        repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(212,175,55,0.07) 18px, rgba(212,175,55,0.07) 19px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-back::after {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border: 1px solid rgba(212,175,55,0.38);
+      border-radius: 3px;
+    }
+    .card-back svg {
+      width: 36px; height: 36px;
+      opacity: 0.7;
+      animation: icon-breathe 4s ease-in-out infinite;
+      position: relative; z-index: 1;
+    }
+    @keyframes icon-breathe {
+      0%,100%{opacity:0.5; transform:scale(1);}
+      50%{opacity:0.9; transform:scale(1.06);}
+    }
+
+    .card-front {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 5px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform: rotateY(180deg);
+      overflow: hidden;
+    }
+    .card-front img {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+
+    #cursor {
+      position: fixed; width: 48px; height: 48px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(212,175,55,0.25) 0%, transparent 70%);
+      border: 1.5px solid rgba(212,175,55,0.6);
+      pointer-events: none;
+      transform: translate(-50%,-50%);
+      z-index: 9999; display: none;
+      transition: width 0.2s, height 0.2s;
+      box-shadow: 0 0 16px rgba(212,175,55,0.25);
+    }
+    #cursor.active { width:64px; height:64px; border-color:rgba(212,175,55,0.9); box-shadow:0 0 32px rgba(212,175,55,0.5); }
+    #cursor::after {
+      content:''; position:absolute; top:50%; left:50%;
+      width:6px; height:6px; background:#D4AF37; border-radius:50%;
+      transform:translate(-50%,-50%);
+    }
+
+    #gesture-indicator {
+      position:fixed; top:20px; right:20px;
+      padding:10px 20px;
+      background:rgba(18,18,18,0.92);
+      border:1px solid rgba(212,175,55,0.25);
+      border-radius:30px; font-size:12px;
+      z-index:1000; backdrop-filter:blur(8px);
+      letter-spacing:0.05em;
+    }
+
+    #camera-preview {
+      position:fixed; bottom:20px; right:20px;
+      width:160px; height:120px;
+      border-radius:10px; overflow:hidden;
+      z-index:1000;
+      border:1px solid rgba(212,175,55,0.25);
+      background:#0a0a0a;
+      box-shadow:0 4px 24px rgba(0,0,0,0.6);
+    }
+    #camera-preview video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); opacity:0.9; }
+    #camera-preview.hidden { display:none; }
+
+    .glass-panel {
+      background:linear-gradient(145deg,rgba(20,14,10,0.88) 0%,rgba(30,20,14,0.75) 100%);
+      backdrop-filter:blur(18px);
+      border:1px solid rgba(212,175,55,0.18);
+      border-radius:16px; position:relative;
+    }
+    .glass-panel::before {
+      content:''; position:absolute; top:0; left:20%; right:20%; height:1px;
+      background:linear-gradient(90deg,transparent,rgba(212,175,55,0.35),transparent);
+    }
+
+    .result-card {
+      background:linear-gradient(160deg,rgba(20,10,10,0.95) 0%,rgba(38,22,10,0.9) 100%);
+      border:1px solid rgba(212,175,55,0.25);
+      border-radius:16px; position:relative; overflow:hidden;
+      animation: card-reveal 0.85s cubic-bezier(0.22,1,0.36,1) forwards;
+      opacity:0;
+    }
+    .result-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg,transparent,rgba(212,175,55,0.45),transparent);
+    }
+    @keyframes card-reveal {
+      0%  { transform:translateY(70px) rotateX(18deg) scale(0.88); opacity:0; }
+      100%{ transform:translateY(0)    rotateX(0)     scale(1);    opacity:1; }
+    }
+
+    @keyframes tag-pop {
+      0%  {transform:scale(0);   opacity:0;}
+      70% {transform:scale(1.1);}
+      100%{transform:scale(1);   opacity:1;}
+    }
+    .keyword-tag { animation:tag-pop 0.4s ease-out forwards; opacity:0; }
+
+    .result-img-wrap {
+      width:160px; height:260px;
+      border-radius:8px; overflow:hidden;
+      border:1px solid rgba(212,175,55,0.3);
+      box-shadow:0 8px 40px rgba(0,0,0,0.6);
+      flex-shrink:0;
+      position:relative;
+    }
+    .result-img-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+    .result-img-wrap::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.5) 100%);
+      z-index:1;
+    }
+
+    #loading {
+      position:fixed; inset:0; background:#0d0d0d;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      z-index:10000; transition:opacity 0.8s;
+    }
+    .loading-ring {
+      width:88px; height:88px;
+      border:1.5px solid rgba(212,175,55,0.12);
+      border-top-color:#D4AF37;
+      border-radius:50%;
+      animation:spin 1.6s linear infinite;
+      position:relative;
+    }
+    .loading-ring::before {
+      content:'营'; position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      font-size:22px; color:#D4AF37;
+      font-family:'Noto Serif SC',serif;
+      animation:icon-breathe 2s infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg);} }
+
+    #chat-messages::-webkit-scrollbar{width:4px;}
+    #chat-messages::-webkit-scrollbar-track{background:rgba(0,0,0,0.2);border-radius:2px;}
+    #chat-messages::-webkit-scrollbar-thumb{background:rgba(212,175,55,0.25);border-radius:2px;}
+    #chat-messages::-webkit-scrollbar-thumb:hover{background:rgba(212,175,55,0.45);}
+
+    #tutorial { background:rgba(10,10,10,0.96); border-top:1px solid rgba(212,175,55,0.15); }
+    .tutorial-step { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid rgba(212,175,55,0.08); }
+    .step-icon { width:44px; height:44px; border-radius:50%; background:rgba(212,175,55,0.08); border:1px solid rgba(212,175,55,0.25); display:flex; align-items:center; justify-content:center; font-size:18px; color:#D4AF37; flex-shrink:0; }
+
+    @media(max-width:768px){
+      #tarot-circle{width:340px;height:340px;}
+      .tarot-card{width:48px;height:80px;}
+      #camera-preview{width:100px;height:75px;bottom:80px;}
+      #gesture-indicator{font-size:11px;padding:7px 14px;}
+      .result-img-wrap{width:120px;height:200px;}
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="loading">
+    <div class="loading-ring"></div>
+    <p class="mt-8 text-sm tracking-[0.5em]" style="color:#D4AF37;">匠心 · 营造</p>
+    <p class="mt-2 text-xs tracking-widest" style="color:rgba(255,255,255,0.3);">营造法式推演中…</p>
+  </div>
+
+  <div id="cosmos"></div>
+  <div id="cursor"></div>
+
+  <div id="gesture-indicator">
+    <i class="fa-solid fa-hand-sparkles mr-2" style="color:#D4AF37;"></i>
+    <span id="gesture-text" style="color:rgba(255,255,255,0.75);">等待手势…</span>
+  </div>
+
+  <div id="camera-preview">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="hand-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+  </div>
+
+  <div class="container mx-auto px-4 py-10 relative z-10">
+
+    <div class="text-center mb-10">
+      <p class="text-xs tracking-[0.6em] mb-3" style="color:rgba(212,175,55,0.45);">宋 · 李诫 著</p>
+      <h1 class="text-4xl md:text-5xl font-light tracking-[0.45em] mb-4"
+          style="text-shadow:0 0 32px rgba(212,175,55,0.2);">匠心 · 营造</h1>
+      <div class="ink-rule mb-4"></div>
+      <p class="text-sm tracking-[0.35em] font-light" style="color:rgba(212,175,55,0.6);">大木作构件推演</p>
+    </div>
+
+    <div class="text-center mb-8">
+      <p id="status-text" class="text-sm tracking-widest" style="color:rgba(255,255,255,0.45);">
+        请选取一个营造构件
+      </p>
+    </div>
+
+    <div id="tarot-circle" class="mb-12 mx-auto">
+      <div id="circle-inner"></div>
+    </div>
+
+    <div id="selected-cards" class="hidden flex justify-center mb-12 px-4"></div>
+
+    <div id="reading" class="hidden max-w-2xl mx-auto glass-panel p-8 mb-8">
+      <h2 class="text-base mb-5 text-center tracking-[0.3em] font-light" style="color:#D4AF37;">── 营造断语 ──</h2>
+      <div id="keywords" class="flex flex-wrap gap-2 justify-center mb-6"></div>
+      <div id="full-reading" class="leading-relaxed text-sm space-y-5" style="color:rgba(255,255,255,0.82);"></div>
+    </div>
+
+    <div id="chat" class="hidden max-w-xl mx-auto glass-panel overflow-hidden mb-10">
+      <div class="px-6 py-4" style="border-bottom:1px solid rgba(212,175,55,0.15);">
+        <h3 class="text-sm tracking-[0.25em] flex items-center justify-center gap-2" style="color:#D4AF37;">
+          <i class="fa-solid fa-comments"></i>深入探索
+        </h3>
+      </div>
+      <div id="chat-messages" class="h-80 overflow-y-auto p-4 space-y-3"></div>
+      <div class="px-4 py-4" style="border-top:1px solid rgba(212,175,55,0.08);background:rgba(0,0,0,0.25);">
+        <div class="flex gap-3">
+          <input type="text" id="question" placeholder="输入你的问题…"
+            class="flex-1 rounded-lg px-4 py-2 text-sm outline-none transition-all"
+            style="background:rgba(0,0,0,0.45);border:1px solid rgba(212,175,55,0.2);color:#fff;"
+            onkeypress="if(event.key==='Enter')sendMessage()">
+          <button onclick="sendMessage()" id="send-btn"
+            class="px-5 py-2 rounded-lg text-sm transition-all"
+            style="background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.25);color:#D4AF37;">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-2 mb-24">
+      <button onclick="restart()"
+        class="px-10 py-3 rounded-full text-sm tracking-widest transition-all"
+        style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.28);color:#D4AF37;">
+        <i class="fa-solid fa-rotate-right mr-2"></i>重新推演
+      </button>
+    </div>
+  </div>
+
+  <div id="tutorial" class="fixed bottom-0 left-0 right-0 z-50">
+    <div class="container mx-auto">
+      <div class="flex justify-between items-center px-5 py-3" style="border-bottom:1px solid rgba(212,175,55,0.1);">
+        <h3 class="text-xs tracking-widest" style="color:#D4AF37;">
+          <i class="fa-solid fa-ruler-combined mr-2"></i>操作指南
+        </h3>
+        <button onclick="toggleTutorial()" style="color:rgba(255,255,255,0.35);">
+          <i class="fa-solid fa-chevron-up" id="tutorial-toggle"></i>
+        </button>
+      </div>
+      <div id="tutorial-content" class="overflow-hidden transition-all duration-500" style="max-height:0;">
+        <div class="tutorial-step">
+          <div class="step-icon"><i class="fa-solid fa-hand"></i></div>
+          <div><h4 class="text-sm font-medium mb-1">张开手掌</h4><p class="text-xs" style="color:rgba(255,255,255,0.38);">构件阵开始旋转</p></div>
+        </div>
+        <div class="tutorial-step">
+          <div class="step-icon"><i class="fa-solid fa-fist-raised"></i></div>
+          <div><h4 class="text-sm font-medium mb-1">握紧拳头</h4><p class="text-xs" style="color:rgba(255,255,255,0.38);">构件阵停止，准备选取</p></div>
+        </div>
+        <div class="tutorial-step">
+          <div class="step-icon"><i class="fa-solid fa-hand-point-up"></i></div>
+          <div><h4 class="text-sm font-medium mb-1">食指指向构件</h4><p class="text-xs" style="color:rgba(255,255,255,0.38);">悬停 1 秒自动选取</p></div>
+        </div>
+        <div class="tutorial-step" style="border-bottom:none;">
+          <div class="step-icon"><i class="fa-solid fa-mouse-pointer"></i></div>
+          <div><h4 class="text-sm font-medium mb-1">鼠标 / 触屏点击</h4><p class="text-xs" style="color:rgba(255,255,255,0.38);">无摄像头亦可直接点击</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ═══════════════════════════════════════════
+     配置
+  ═══════════════════════════════════════════ */
+  const YUANQI_API_KEY      = "rK4osZmPzvvXiOvUO1W2Z9VDjBzobTd2";
+  const YUANQI_ASSISTANT_ID = "2047315373340911424";
+  const YUANQI_API_URL      = "https://yuanqi.tencent.com/openapi/v1/agent/chat/completions";
+  
+  /* ═══════════════════════════════════════════
+     营造法式构件数据
+  ═══════════════════════════════════════════ */
+  const tarotCards = [
+    {
+      name:"柱", en:"Zhu",
+      keywords:["根基","立势","承载"],
+      meaning:"擎天之柱，定鼎之基。柱者，建筑之骨也，承上启下，坚定不移。此构件现，示根基已稳，当守正持重，方能托举大业。",
+      detail:"柱在大木作中居核心地位，分檐柱、金柱、中柱三类，截面多圆，上收下舒谓之「梭柱」，取刚柔并济之意。"
+    },
+    {
+      name:"斗拱", en:"Dougong",
+      keywords:["巧思","联结","层叠"],
+      meaning:"斗拱承梁，巧夺天工。以小拱大，层层相扣，乃匠心独运之象。此构件至，示当以智慧联结资源，借力而行，愈叠愈稳。",
+      detail:"斗拱由斗、拱、翘、昂组合而成，是中国古建筑最具标志性的结构单元，出踩愈多，规制愈高。"
+    },
+    {
+      name:"梁", en:"Liang",
+      keywords:["横贯","担纲","中流"],
+      meaning:"月梁如虹，横贯东西。梁者，屋之脊梁也，担当重任而不折。此构件见，示当挑重担，立于中流，方见真章。",
+      detail:"宋式梁多做成「月梁」，两端略翘如弓月，视觉轻盈而结构稳固，梁上刻卷草或云纹，将力与美融为一体。"
+    },
+    {
+      name:"枋", en:"Fang",
+      keywords:["连通","稳固","辅佐"],
+      meaning:"额枋连柱，稳固四方。枋者，联结之材，虽居辅位，实为要枢。此构件现，示当善于联络，稳中求进，辅佐大局。",
+      detail:"枋横置于柱间，有阑额、由额、普拍枋之分，以榫卯与柱身紧密咬合，是构架整体性的关键所在。"
+    },
+    {
+      name:"檩", en:"Lin",
+      keywords:["纵向","统领","延展"],
+      meaning:"正檩贯脊，统摄椽瓦。檩者，屋顶之纲，纵向延展，统领全局。此构件至，示当高瞻远瞩，以纵贯之势统筹规划。",
+      detail:"檩沿屋脊方向排列，有脊檩、金檩、檐檩之别，由脊至檐依次降落，构成屋面举折曲线之骨架。"
+    },
+    {
+      name:"椽", en:"Chuan",
+      keywords:["细密","覆盖","护持"],
+      meaning:"飞椽密布，护顶遮檐。椽者，细密而不可缺，虽微小却护持周全。此构件见，示当注重细节，积少成多，护持根本。",
+      detail:"椽垂直于檩排列，有圆椽与方椽之分。檐口处加飞椽以出挑，令屋檐飘逸，正是「如翚斯飞」之美的来源。"
+    },
+    {
+      name:"雀替", en:"Queti",
+      keywords:["美善","补强","精致"],
+      meaning:"雀替飞扬，美观兼固。雀替者，既美化梁柱交接，又加固节点，一举两得。此构件现，示当内外兼修，美善并举。",
+      detail:"雀替置于梁与柱的交角处，雕刻卷草、龙凤等纹样，既缩短梁的净跨、增强承载，又是木雕艺术的重要载体。"
+    },
+    {
+      name:"昂", en:"Ang",
+      keywords:["翘起","突破","昂扬"],
+      meaning:"昂首向天，势如破竹。昂者，斜向翘出之构件，突破横向局限，昂扬向上。此构件至，示当勇于突破，不拘常规，势不可挡。",
+      detail:"昂是斗拱中斜向伸出的构件，有上昂与下昂之别，其杠杆原理的运用体现了宋代匠人对力学的深刻理解。"
+    },
+    {
+      name:"栌斗", en:"Loudou",
+      keywords:["承接","包容","底座"],
+      meaning:"栌斗为基，包纳四方。栌斗者，斗拱之底座，承接重力，包容万物。此构件见，示当广纳资源，厚德载物，方能承托更大格局。",
+      detail:"栌斗是斗拱最底层的方形构件，直接坐于柱头之上，承接来自上部的全部荷载，其尺寸规制直接决定整攒斗拱的等级。"
+    },
+    {
+      name:"翘", en:"Qiao",
+      keywords:["伸展","灵动","飞扬"],
+      meaning:"翘角飞檐，灵动超然。翘者，横向伸出之拱，使屋檐飞扬，超脱凡俗。此构件现，示当灵活应变，飞扬神采，以变应万变。",
+      detail:"翘是斗拱中垂直于建筑立面方向伸出的构件，层层叠加形成出跳，决定斗拱的出挑深度与屋檐的悬挑长度。"
+    },
+    {
+      name:"撑拱", en:"Chenggong",
+      keywords:["支撑","转承","辅力"],
+      meaning:"撑拱斜出，转承有力。撑拱者，斜向支撑，助力传导，以巧力化千斤。此构件至，示转机将至，当借势而为，四两拨千斤。",
+      detail:"撑拱多见于民间建筑，以斜向木构件支撑挑出的梁或檐，结构简洁而受力合理，是民间匠人智慧的体现。"
+    },
+    {
+      name:"叉手", en:"Chashou",
+      keywords:["交叉","平衡","协调"],
+      meaning:"叉手交错，平衡有道。叉手者，梁架交叉之辅材，平衡协调左右。此构件见，示当求平衡，协调各方，方能共撑大局。",
+      detail:"叉手是唐宋建筑中支撑脊檩的斜向构件，自两侧梁头斜向交叉顶于脊檩之下，元代以后渐被蜀柱取代。"
+    },
+    {
+      name:"驼峰", en:"Tuofeng",
+      keywords:["蓄势","承托","厚积"],
+      meaning:"驼峰蓄力，厚积薄发。驼峰者，弯曲如峰，蓄力于内，承托梁架。此构件至，示当沉潜积累，厚积薄发，蓄势而动。",
+      detail:"驼峰是置于梁上、用以支承上层梁架的木墩，因形似骆驼背峰而得名，常雕刻云纹、卷草，兼具结构与装饰功能。"
+    },
+    {
+      name:"蜀柱", en:"Shuzhu",
+      keywords:["辅正","短柱","补缺"],
+      meaning:"蜀柱立于梁间，辅正补缺。蜀柱者，短柱也，虽小却处处关键。此构件现，示当补强短板，完善体系，于细微处见功夫。",
+      detail:"蜀柱是立于梁背之上、用以支承上层檩或梁的短柱，宋称「蜀柱」，清称「瓜柱」，是叉手之后的主要脊部支撑构件。"
+    },
+    {
+      name:"替木", en:"Timu",
+      keywords:["替代","变通","因地"],
+      meaning:"替木权变，因地制宜。替木者，替代之材，随形就势，灵活变通。此构件见，示当因势利导，不拘一格，灵活应对变局。",
+      detail:"替木是置于栱头或昂头之上，用以承托檩条的短木，可替代部分斗拱功能，结构简洁，多用于次要建筑或简化节点。"
+    },
+    {
+      name:"穿插枋", en:"Chuanchafang",
+      keywords:["贯穿","整合","连贯"],
+      meaning:"穿插贯通，连为一体。穿插枋者，贯穿柱身，整合左右，使构架浑然一体。此构件至，示当贯通脉络，整合资源，一以贯之。",
+      detail:"穿插枋横向穿过柱身，将相邻各柱连为整体，极大增强构架的横向稳定性，是南方穿斗式建筑的核心构件之一。"
+    },
+    {
+      name:"脊檩", en:"Jilin",
+      keywords:["至高","统领","圆满"],
+      meaning:"脊檩居顶，至高无上。脊檩者，屋顶之巅，统领全局，至尊至贵。此构件现，示功成名就，登峰造极，大业已成。",
+      detail:"脊檩是屋顶最高处的檩条，位于正脊之下，是整座建筑木构架中位置最高的水平构件，象征着建筑营造的最终完成。"
+    },
+    {
+      name:"角梁", en:"Jiaoliang",
+      keywords:["转角","拓展","格局"],
+      meaning:"角梁斜出，拓展格局。角梁者，屋角之骨，斜向延伸，拓展空间。此构件至，示当突破边界，拓展格局，开辟新境。",
+      detail:"角梁由老角梁与仔角梁叠合而成，沿45°方向斜向挑出，形成屋角翘起的飞檐，是中国古建筑「如翼斯翔」意境的核心所在。"
+    },
+    {
+      name:"井口天花", en:"Jingkoutianhua",
+      keywords:["覆盖","圆满","完成"],
+      meaning:"井口天花，覆盖穹顶。天花者，室内顶棚，遮蔽美化，收束全局。此构件见，示事业圆满，功德完成，善始善终。",
+      detail:"井口天花以小木作方格框架覆盖室内顶部，格内绘制彩画或贴金，既遮蔽梁架又美化室内，是建筑内部装修的最高级别。"
+    },
+    {
+      name:"藻井", en:"Zaojing",
+      keywords:["至尊","华美","中心"],
+      meaning:"藻井高悬，华美无双。藻井者，天花之极品，层层叠绕，居中至尊。此构件至，示居核心之位，华彩绽放，众目所仰。",
+      detail:"藻井是室内顶部最华贵的装饰构件，以多层斗拱或木作层层内收，形成穹窿状，仅用于皇家建筑或重要宗教场所的中心位置。"
+    },
+    {
+      name:"平坐", en:"Pingzuo",
+      keywords:["过渡","平台","承上启下"],
+      meaning:"平坐承上启下，过渡有序。平坐者，楼阁之间的腰檐平台，连接上下，过渡有节。此构件见，示当稳步过渡，循序渐进，承上而启下。",
+      detail:"平坐是楼阁建筑各层之间挑出的木构平台，设勾阑围护，可供人行走眺望，是楼阁立面节奏感的重要构成元素。"
+    }
+  ];
+
+  /* ═══════════════════════════════════════════
+     斗拱几何 SVG
+  ═══════════════════════════════════════════ */
+  const DOUGONG_SVG = `
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="12" y="24" width="12" height="5" fill="#D4AF37" opacity="0.9"/>
+      <rect x="7"  y="20" width="22" height="4"  fill="#D4AF37" opacity="0.75"/>
+      <rect x="3"  y="16" width="30" height="4"  fill="#D4AF37" opacity="0.6"/>
+      <line x1="4"  y1="16" x2="18" y2="9"  stroke="#D4AF37" stroke-width="1.2" opacity="0.85"/>
+      <line x1="32" y1="16" x2="18" y2="9"  stroke="#D4AF37" stroke-width="1.2" opacity="0.85"/>
+      <rect x="9"  y="11" width="18" height="5"  fill="#D4AF37" opacity="0.55"/>
+      <rect x="5"  y="20" width="4"  height="4"  fill="#D4AF37" opacity="0.7"/>
+      <rect x="27" y="20" width="4"  height="4"  fill="#D4AF37" opacity="0.7"/>
+    </svg>`;
+
+  /* ═══════════════════════════════════════════
+     DOM 元素引用
+  ═══════════════════════════════════════════ */
+  const circle      = document.getElementById('tarot-circle');
+  const circleInner = document.getElementById('circle-inner');
+  const cursorEl    = document.getElementById('cursor');
+  const gestureText = document.getElementById('gesture-text');
+  const statusText  = document.getElementById('status-text');
+  const loadingEl   = document.getElementById('loading');
+
+  /* ═══════════════════════════════════════════════════════════
+     模块一：全局状态
+  ═══════════════════════════════════════════════════════════ */
+  let selectedCard    = null;
+  let cardPositions   = {};
+  let chatHistory     = [];
+  let isLoading       = false;
+  let currentRotation = 0;
+  let isRotating      = false;
+  let rotationSpeed   = 0;
+  let animationId     = null;
+  let pointingCard    = null;
+  let pointingTimer   = null;
+  let hands           = null;
+  let camera          = null;
+  let done            = false;
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块二：构件阵渲染
+     ─ 生成 22 张卡片并挂载点击事件
+  ═══════════════════════════════════════════════════════════ */
+  function renderCircle() {
+    circleInner.innerHTML = '';
+    cardPositions = {};
+    done = false;
+
+    const count  = tarotCards.length;
+    const radius = window.innerWidth < 768 ? 120 : 195;
+
+    tarotCards.forEach((card, index) => {
+      const angle = (360 / count) * index - 90;
+      const rad   = (angle * Math.PI) / 180;
+      const x     = Math.cos(rad) * radius;
+      const y     = Math.sin(rad) * radius;
+
+      const cardEl = document.createElement('div');
+      cardEl.className     = 'tarot-card';
+      cardEl.dataset.index = index;
+
+      cardEl.innerHTML = `
+        <div class="card-inner">
+          <div class="card-back">${DOUGONG_SVG}</div>
+          <div class="card-front">
+            <img src="img/${index + 1}.jpg" alt="${card.name}"
+                 onerror="this.style.display='none';
+                          this.parentNode.style.background='linear-gradient(145deg,#3a1a00,#1a0d00)';
+                          this.parentNode.innerHTML+='<span style=\\'position:absolute;inset:0;display:flex;
+                          align-items:center;justify-content:center;font-size:11px;color:#D4AF37;\\'>${card.name}</span>'">
+          </div>
+        </div>`;
+
+      cardEl.style.left      = '50%';
+      cardEl.style.top       = '50%';
+      cardEl.style.transform =
+        `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+
+      cardEl.addEventListener('click', () => selectCard(index));
+
+      circleInner.appendChild(cardEl);
+      cardPositions[index] = { x, y, element: cardEl };
+    });
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块三：旋转控制
+     ─ open 手势 → startRotation
+     ─ fist 手势 → stopRotation
+  ═══════════════════════════════════════════════════════════ */
+
+  function startRotation() {
+    if (isRotating || done) return;
+    isRotating = true;
+
+    const tick = () => {
+      if (!isRotating) return;
+      if (rotationSpeed < 1.8) rotationSpeed += 0.04;
+      currentRotation += rotationSpeed;
+      applyRotation();
+      animationId = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  function stopRotation() {
+    isRotating = false;
+    if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+
+    const decel = () => {
+      if (rotationSpeed > 0.05) {
+        rotationSpeed = Math.max(0, rotationSpeed - 0.06);
+        currentRotation += rotationSpeed;
+        applyRotation();
+        requestAnimationFrame(decel);
+      } else {
+        rotationSpeed = 0;
+      }
+    };
+    decel();
+  }
+
+  function applyRotation() {
+    circleInner.style.transform = `rotate(${currentRotation}deg)`;
+    Object.values(cardPositions).forEach(({ x, y, element }) => {
+      element.style.transform =
+        `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) rotate(${-currentRotation}deg)`;
+    });
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块四：单牌选取状态机
+     状态流：idle → selected → showResult → chat
+  ═══════════════════════════════════════════════════════════ */
+  function selectCard(index) {
+    if (done) return;
+    done = true;
+
+    isRotating = false;
+    if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+    rotationSpeed = 0;
+
+    const card   = tarotCards[index];
+    const cardEl = cardPositions[index].element;
+    selectedCard = { ...card, index };
+
+    cardEl.classList.add('selected');
+
+    setTimeout(() => {
+      const inner = cardEl.querySelector('.card-inner');
+      if (inner) inner.classList.add('flipped');
+    }, 200);
+
+    Object.entries(cardPositions).forEach(([i, { element }]) => {
+      if (parseInt(i) !== index) {
+        element.style.transition   = 'opacity 0.6s ease';
+        element.style.opacity      = '0.08';
+        element.style.pointerEvents = 'none';
+      }
+    });
+
+    statusText.textContent = `已定：${card.name} · 营造断语推演中…`;
+
+    setTimeout(showResult, 900);
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块五：结果展示
+     ─ 大图卡片 + 关键词标签 + 营造断语
+  ═══════════════════════════════════════════════════════════ */
+  function showResult() {
+    if (!selectedCard) return;
+    const card = selectedCard;
+
+    const container = document.getElementById('selected-cards');
+    container.classList.remove('hidden');
+    container.innerHTML = `
+      <div class="result-card p-6 max-w-lg w-full">
+        <div class="flex gap-6 items-start">
+
+          <div class="result-img-wrap">
+            <img src="img/${card.index + 1}.jpg" alt="${card.name}"
+                 onerror="this.parentNode.style.background='linear-gradient(145deg,#3a1a00,#1a0d00)';
+                          this.parentNode.innerHTML='<div style=\\'display:flex;align-items:center;
+                          justify-content:center;height:100%;font-size:2rem;color:#D4AF37;\\'>${card.name}</div>'">
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <p class="text-xs tracking-[0.4em] mb-1"
+               style="color:rgba(212,175,55,0.5);">${card.en.toUpperCase()}</p>
+            <h3 class="text-3xl font-light tracking-widest mb-3"
+                style="color:#D4AF37;">${card.name}</h3>
+            <div class="ink-rule mb-4" style="margin-left:0;width:48px;"></div>
+            <div class="flex flex-wrap gap-2 mb-4" id="result-keywords"></div>
+            <p class="text-sm leading-relaxed"
+               style="color:rgba(255,255,255,0.7);">${card.detail}</p>
+          </div>
+
+        </div>
+      </div>`;
+
+    const kwContainer = document.getElementById('result-keywords');
+    card.keywords.forEach((kw, i) => {
+      const span = document.createElement('span');
+      span.className = 'keyword-tag px-3 py-1 text-xs rounded-full';
+      span.style.cssText = `
+        background  : rgba(212,175,55,0.12);
+        border      : 1px solid rgba(212,175,55,0.3);
+        color       : #D4AF37;
+        animation-delay: ${i * 0.12}s;`;
+      span.textContent = kw;
+      kwContainer.appendChild(span);
+    });
+
+    const readingDiv     = document.getElementById('reading');
+    const keywordsDiv    = document.getElementById('keywords');
+    const fullReadingDiv = document.getElementById('full-reading');
+
+    keywordsDiv.innerHTML = card.keywords.map((kw, i) => `
+      <span class="keyword-tag px-4 py-1.5 text-xs rounded-full"
+            style="background:rgba(212,175,55,0.1);
+                   border:1px solid rgba(212,175,55,0.28);
+                   color:#D4AF37;
+                   animation-delay:${i * 0.1}s;">${kw}</span>
+    `).join('');
+
+    fullReadingDiv.innerHTML = `
+      <p style="color:rgba(255,255,255,0.88);line-height:2;">
+        ${card.meaning}
+      </p>
+      <div style="margin-top:1.5rem;padding-top:1.25rem;
+                  border-top:1px solid rgba(212,175,55,0.15);">
+        <p class="text-xs tracking-widest mb-2"
+           style="color:rgba(212,175,55,0.55);">── 法式考据 ──</p>
+        <p style="color:rgba(255,255,255,0.55);font-size:0.8rem;line-height:1.9;">
+          ${card.detail}
+        </p>
+      </div>`;
+
+    readingDiv.classList.remove('hidden');
+
+    setTimeout(() => {
+      document.getElementById('chat').classList.remove('hidden');
+      initChat();
+    }, 800);
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块六：AI 对话
+     ─ initChat     : 初始化上下文 + 欢迎语
+     ─ sendMessage  : 发送用户消息，流式替换打字指示器
+     ─ addMessage   : 往 #chat-messages 追加气泡
+  ═══════════════════════════════════════════════════════════ */
+  function initChat() {
+    chatHistory = [];
+    const card  = selectedCard;
+
+    chatHistory.push({
+      role: 'system',
+      content:
+        `你是一位精通《营造法式》的古建筑大师，以古雅而易懂的语言解读大木作构件的营造智慧。
+  当前推演构件：【${card.name}】（${card.en}）
+  关键词：${card.keywords.join('、')}
+  断语：${card.meaning}
+  法式考据：${card.detail}
+  请据此为用户解惑，语言风格典雅，可适当引用《营造法式》原文，每次回复不超过200字。`
+    });
+
+    addMessage(
+      'assistant',
+      `「${card.name}」之象已显。
+       ${card.keywords[0]}为本，${card.keywords[1]}为用，${card.keywords[2]}为成。<br>
+       若有疑惑，可详询于我——无论构件之形制尺度，抑或此象于当下之指引。`
+    );
+  }
+
+  async function sendMessage() {
+  const input = document.getElementById('question');
+  const q     = input.value.trim();
+  if (!q || isLoading) return;
+  input.value = '';
+
+  addMessage('user', q);
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+  chatHistory.push({ role: 'user', content: q });
+
+  const typingId = 'typing-' + Date.now();
+  addMessage('assistant', `<span id="${typingId}">…</span>`);
+
+  try {
+    // 🔹 方案 1：只发送当前问题 + 系统提示（推荐）
+    const systemPrompt = chatHistory.find(m => m.role === 'system')?.content || '';
+    const requestBody = {
+      assistant_id: YUANQI_ASSISTANT_ID,
+      user_id: 'user_' + Date.now(),
+      stream: false,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: systemPrompt ? `${systemPrompt}\n\n用户问题：${q}` : q
+            }
+          ]
+        }
+      ]
+    };
+
+    console.log('📤 发送请求:', JSON.stringify(requestBody, null, 2));
+
+    const res = await fetch(YUANQI_API_URL, {
+      method : 'POST',
+      headers: {
+        'Content-Type' : 'application/json',
+        'Authorization': `Bearer ${YUANQI_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log('📥 响应数据:', data);
+    
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error('返回格式异常: ' + JSON.stringify(data));
+    }
+
+    const reply = data.choices[0].message.content;
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) {
+      typingEl.closest('.chat-bubble').innerHTML = reply;
+    }
+
+  } catch (err) {
+    console.error('❌ API 错误:', err);
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) {
+      typingEl.closest('.chat-bubble').innerHTML = 
+        `调用失败<br><small style="opacity:0.6;font-size:11px;">${err.message}</small>`;
+    }
+  }
+
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+
+  function addMessage(role, html) {
+    const wrap = document.getElementById('chat-messages');
+    const div  = document.createElement('div');
+    div.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+    div.innerHTML = `
+      <div class="chat-bubble px-4 py-3 rounded-2xl max-w-[82%] text-sm leading-relaxed"
+           style="
+             background : ${role === 'user'
+               ? 'rgba(212,175,55,0.18)'
+               : 'rgba(255,255,255,0.05)'};
+             border     : 1px solid ${role === 'user'
+               ? 'rgba(212,175,55,0.3)'
+               : 'rgba(255,255,255,0.08)'};
+             color      : ${role === 'user'
+               ? '#fff'
+               : 'rgba(255,255,255,0.88)'};
+           ">${html}</div>`;
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块七：MediaPipe 手势识别
+     手势 → 状态机：
+       open     → startRotation
+       fist     → stopRotation
+       pointing → 1秒悬停自动 selectCard
+  ═══════════════════════════════════════════════════════════ */
+  async function initHandTracking() {
+    try {
+      hands = new Hands({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+      });
+      hands.setOptions({
+        maxNumHands            : 1,
+        modelComplexity        : 1,
+        minDetectionConfidence : 0.72,
+        minTrackingConfidence  : 0.72
+      });
+      hands.onResults(onHandResults);
+
+      const video = document.getElementById('video');
+      camera = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640, height: 480
+      });
+      camera.start();
+    } catch (err) {
+      console.warn('手势识别未启用:', err);
+      document.getElementById('camera-preview').classList.add('hidden');
+    }
+  }
+
+  function onHandResults(results) {
+    const canvas = document.getElementById('hand-canvas');
+    const ctx    = canvas.getContext('2d');
+    canvas.width  = 640;
+    canvas.height = 480;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!results.multiHandLandmarks?.length) {
+      cursorEl.style.display  = 'none';
+      gestureText.textContent = '等待手势…';
+      return;
+    }
+
+    const lm      = results.multiHandLandmarks[0];
+    const gesture = detectGesture(lm);
+
+    drawHandSkeleton(ctx, lm, canvas.width, canvas.height);
+    handleGesture(gesture, lm[8]);
+  }
+
+  function drawHandSkeleton(ctx, lm, w, h) {
+    const pairs = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [0,9],[9,10],[10,11],[11,12],
+      [0,13],[13,14],[14,15],[15,16],
+      [0,17],[17,18],[18,19],[19,20],
+      [5,9],[9,13],[13,17]
+    ];
+    ctx.strokeStyle = 'rgba(212,175,55,0.55)';
+    ctx.lineWidth   = 1.5;
+    pairs.forEach(([a, b]) => {
+      ctx.beginPath();
+      ctx.moveTo(lm[a].x * w, lm[a].y * h);
+      ctx.lineTo(lm[b].x * w, lm[b].y * h);
+      ctx.stroke();
+    });
+    lm.forEach(p => {
+      ctx.fillStyle = 'rgba(212,175,55,0.85)';
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function detectGesture(lm) {
+    const thumbExt = Math.abs(lm[4].x - lm[2].x) > 0.05;
+    
+    const tips = [8, 12, 16, 20];
+    const pips = [6, 10, 14, 18];
+    const fingerExts = tips.map((tip, i) => lm[tip].y < lm[pips[i]].y);
+    const extCount = fingerExts.filter(f => f).length;
+
+    if (thumbExt && extCount >= 4) return 'open';
+    if (!thumbExt && extCount === 0) return 'fist';
+    if (!thumbExt && extCount === 1 && fingerExts[0]) return 'pointing';
+    
+    return 'unknown';
+  }
+
+  function handleGesture(gesture, indexTip) {
+    if (done) { cursorEl.style.display = 'none'; return; }
+
+    if (gesture === 'open') {
+      gestureText.textContent = '张开手掌 · 旋转中';
+      if (!isRotating) startRotation();
+      cursorEl.style.display = 'none';
+
+    } else if (gesture === 'fist') {
+      gestureText.textContent = '握拳 · 已停止';
+      if (isRotating) stopRotation();
+      cursorEl.style.display = 'none';
+      clearPointingTimer();
+
+    } else if (gesture === 'pointing' && !isRotating && rotationSpeed === 0) {
+      gestureText.textContent = '食指指向 · 选取中';
+
+      const px = (1 - indexTip.x) * window.innerWidth;
+      const py = indexTip.y * window.innerHeight;
+
+      cursorEl.style.left    = px + 'px';
+      cursorEl.style.top     = py + 'px';
+      cursorEl.style.display = 'block';
+
+      const hit = findCardAtPoint(px, py);
+      if (hit !== null) {
+        cursorEl.classList.add('active');
+        if (hit !== pointingCard) {
+          clearPointingTimer();
+          pointingCard  = hit;
+          pointingTimer = setTimeout(() => {
+            selectCard(pointingCard);
+            pointingCard = null;
+          }, 1000);
+        }
+      } else {
+        cursorEl.classList.remove('active');
+        clearPointingTimer();
+      }
+
+    } else {
+      gestureText.textContent = '等待手势…';
+      cursorEl.style.display  = 'none';
+      clearPointingTimer();
+    }
+  }
+
+  function findCardAtPoint(px, py) {
+    Object.values(cardPositions).forEach(({ element }) =>
+      element.classList.remove('hover')
+    );
+    
+    for (const [idx, { element }] of Object.entries(cardPositions)) {
+      const r = element.getBoundingClientRect();
+      if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
+        element.classList.add('hover');
+        return parseInt(idx);
+      }
+    }
+    return null;
+  }
+
+  function clearPointingTimer() {
+    if (pointingTimer) { clearTimeout(pointingTimer); pointingTimer = null; }
+    pointingCard = null;
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块八：辅助交互
+  ═══════════════════════════════════════════════════════════ */
+
+  function bindMouseHover() {
+    document.addEventListener('mousemove', e => {
+      if (done) return;
+      Object.values(cardPositions).forEach(({ element }) => {
+        const r = element.getBoundingClientRect();
+        const hit =
+          e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top  && e.clientY <= r.bottom;
+        element.classList.toggle('hover', hit);
+      });
+    });
+  }
+
+  function toggleTutorial() {
+    const content = document.getElementById('tutorial-content');
+    const icon    = document.getElementById('tutorial-toggle');
+    const isOpen  = content.style.maxHeight && content.style.maxHeight !== '0px';
+    content.style.maxHeight = isOpen ? '0px' : '400px';
+    icon.className = isOpen
+      ? 'fa-solid fa-chevron-up'
+      : 'fa-solid fa-chevron-down';
+  }
+
+  function restart() {
+    selectedCard    = null;
+    chatHistory     = [];
+    done            = false;
+    currentRotation = 0;
+    isRotating      = false;
+    rotationSpeed   = 0;
+    if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+    clearPointingTimer();
+
+    document.getElementById('selected-cards').classList.add('hidden');
+    document.getElementById('reading').classList.add('hidden');
+    document.getElementById('chat').classList.add('hidden');
+    document.getElementById('chat-messages').innerHTML = '';
+    document.getElementById('keywords').innerHTML      = '';
+    document.getElementById('full-reading').innerHTML  = '';
+    statusText.textContent = '请选取一个营造构件';
+
+    renderCircle();
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     模块九：初始化入口
+  ═══════════════════════════════════════════════════════════ */
+  window.addEventListener('load', () => {
+
+    setTimeout(() => {
+      loadingEl.style.opacity = '0';
+      setTimeout(() => { loadingEl.style.display = 'none'; }, 800);
+    }, 1400);
+
+    renderCircle();
+
+    bindMouseHover();
+
+    initHandTracking();
+
+    window.addEventListener('resize', () => {
+      if (!done) renderCircle();
+    });
+
+  });
+  </script>
+</body>
+</html>
